@@ -4,9 +4,12 @@ require('dotenv').config();
 let sequelize;
 
 if (process.env.DATABASE_URL) {
-  // Support cloud database URI (Railway, Render, Aiven, Supabase, etc.)
+  // Support cloud database URI (Railway, Render, Aiven, Supabase, Neon, etc.)
+  const isPostgres = process.env.DATABASE_URL.startsWith('postgres://') || process.env.DATABASE_URL.startsWith('postgresql://');
+  const dialect = isPostgres ? 'postgres' : 'mysql';
+
   sequelize = new Sequelize(process.env.DATABASE_URL, {
-    dialect: 'mysql',
+    dialect: dialect,
     logging: false,
     dialectOptions: {
       ssl: {
@@ -41,7 +44,8 @@ if (process.env.DATABASE_URL) {
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ MySQL Database Connected Successfully');
+    const dialectName = sequelize.getDialect().toUpperCase();
+    console.log(`✅ ${dialectName} Database Connected Successfully`);
   } catch (error) {
     console.error('❌ Unable to connect to the database:', error);
   }
