@@ -142,7 +142,7 @@ export default function WhiteboardPage() {
       <div className="flex-1 w-full flex overflow-hidden">
         {/* Tldraw Canvas */}
         <div className="flex-1 h-full relative tldraw-dark">
-          <Tldraw persistenceKey="qodequant-whiteboard" onMount={(ed) => setEditor(ed)} />
+          <Tldraw onMount={(ed) => setEditor(ed)} />
         </div>
       </div>
     </div>
