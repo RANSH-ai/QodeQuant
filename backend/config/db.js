@@ -7,8 +7,11 @@ if (process.env.DATABASE_URL) {
   // Support cloud database URI (Railway, Render, Aiven, Supabase, Neon, etc.)
   const isPostgres = process.env.DATABASE_URL.startsWith('postgres://') || process.env.DATABASE_URL.startsWith('postgresql://');
   const dialect = isPostgres ? 'postgres' : 'mysql';
+  
+  // Strip query params (like ?sslmode=require) so pg-connection-string does not override rejectUnauthorized: false
+  const cleanUrl = isPostgres ? process.env.DATABASE_URL.split('?')[0] : process.env.DATABASE_URL;
 
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
+  sequelize = new Sequelize(cleanUrl, {
     dialect: dialect,
     logging: false,
     dialectOptions: {

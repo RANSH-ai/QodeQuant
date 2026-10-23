@@ -27,6 +27,13 @@ ProjectFile.belongsTo(User, { foreignKey: 'studentId' });
 Homework.hasMany(ProjectFile, { foreignKey: 'homeworkId' });
 ProjectFile.belongsTo(Homework, { foreignKey: 'homeworkId' });
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Promise Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception:', err);
+});
+
 const app = express();
 const http = require('http');
 const { Server } = require('socket.io');
@@ -196,6 +203,8 @@ sequelize.sync().then(async () => {
   } catch (err) {
     console.error("Error seeding quotes:", err);
   }
+}).catch((err) => {
+  console.error("❌ Database sync error:", err);
 });
 
 const checkAndExpirePro = async (user) => {
