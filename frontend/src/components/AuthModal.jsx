@@ -15,7 +15,6 @@ import {
   EyeOff, 
   AlertCircle 
 } from 'lucide-react';
-import { GoogleLogin } from '@react-oauth/google';
 
 export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   const [step, setStep] = useState('login'); // 'login' | 'signup'
@@ -39,16 +38,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   // Common UI State
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   if (!isOpen) return null;
-
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  const isGoogleConfigured = Boolean(
-    googleClientId && 
-    googleClientId !== 'YOUR_GOOGLE_CLIENT_ID' && 
-    !googleClientId.includes('YOUR_GOOGLE_CLIENT_ID')
-  );
 
   // Helper to persist users locally so offline / cold-start backend never loses real users
   const getStoredUsers = () => {
@@ -257,90 +248,6 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     resetAndClose();
   };
 
-  // --- GOOGLE LOGIN HANDLER ---
-  const handleGoogleSuccess = async (credentialResponse) => {
-    setIsGoogleLoading(true);
-    setAuthError('');
-    try {
-      let googleUser = null;
-
-      if (credentialResponse?.credential && credentialResponse.credential !== 'mock_token') {
-        try {
-          const tokenParts = credentialResponse.credential.split('.');
-          if (tokenParts.length === 3) {
-            const base64Url = tokenParts[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(
-              atob(base64)
-                .split('')
-                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                .join('')
-            );
-            const payload = JSON.parse(jsonPayload);
-            googleUser = {
-              id: payload.sub,
-              name: payload.name || 'Google User',
-              email: payload.email,
-              profilePic: payload.picture,
-              role: step === 'signup' ? role : 'student',
-              isPro: true
-            };
-          }
-        } catch (jwtErr) {
-          console.warn('Could not parse Google JWT token:', jwtErr);
-        }
-      }
-
-      // Try backend sync
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/google`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            token: credentialResponse?.credential || 'mock_token',
-            role: step === 'signup' ? role : undefined 
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.token) localStorage.setItem('token', data.token);
-          if (data.user) {
-            localStorage.setItem('user', JSON.stringify(data.user));
-            localStorage.setItem('auth', 'true');
-            onLoginSuccess(data.user);
-            resetAndClose();
-            return;
-          }
-        }
-      } catch (backendErr) {
-        console.warn('Backend currently unreachable, using instant session:', backendErr);
-      }
-
-      // Resilient session
-      const finalUser = googleUser || {
-        id: 'google_user_' + Date.now(),
-        name: 'Google User',
-        email: 'user@gmail.com',
-        role: step === 'signup' ? role : 'student',
-        profilePic: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150',
-        isPro: true
-      };
-
-      localStorage.setItem('token', 'google_session_' + Date.now());
-      localStorage.setItem('user', JSON.stringify(finalUser));
-      localStorage.setItem('auth', 'true');
-      onLoginSuccess(finalUser);
-      resetAndClose();
-
-    } catch (err) {
-      console.error('Google Auth Error:', err);
-      setAuthError('Google Login could not be completed. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
   const resetAndClose = () => {
     setStep('login');
     setLoginId('');
@@ -472,48 +379,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               )}
             </button>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-4">
-              <div className="h-px bg-[#262626] flex-1"></div>
-              <span className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">or continue with</span>
-              <div className="h-px bg-[#262626] flex-1"></div>
-            </div>
-            
-            {/* Google Login Button */}
-            <div className="flex flex-col items-center w-full">
-              {isGoogleConfigured ? (
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => {
-                    handleGoogleSuccess({ credential: 'mock_token' });
-                  }}
-                  theme="filled_black"
-                  shape="pill"
-                />
-              ) : (
-                <button 
-                  type="button" 
-                  disabled={isGoogleLoading}
-                  onClick={() => handleGoogleSuccess({ credential: 'mock_token' })}
-                  className="w-full flex items-center justify-center gap-3 bg-[#18181b] hover:bg-[#222226] text-white border border-[#333] hover:border-[#555] font-medium py-2.5 px-4 rounded-xl transition-all shadow-[0_4px_12px_rgba(0,0,0,0.4)] group cursor-pointer disabled:opacity-50 text-sm"
-                >
-                  {isGoogleLoading ? (
-                    <Loader2 size={18} className="animate-spin text-blue-400" />
-                  ) : (
-                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                    </svg>
-                  )}
-                  <span className="font-semibold text-sm">{isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}</span>
-                </button>
-              )}
-            </div>
-
             {/* Switch to Signup */}
-            <div className="text-center pt-3 border-t border-[#222]">
+            <div className="text-center pt-4 border-t border-[#222]">
               <span className="text-gray-400 text-sm">Don't have an account? </span>
               <button 
                 type="button" 
@@ -669,48 +536,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               )}
             </button>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-3">
-              <div className="h-px bg-[#262626] flex-1"></div>
-              <span className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">or sign up with</span>
-              <div className="h-px bg-[#262626] flex-1"></div>
-            </div>
-            
-            {/* Google Signup Button */}
-            <div className="flex flex-col items-center w-full">
-              {isGoogleConfigured ? (
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => {
-                    handleGoogleSuccess({ credential: 'mock_token' });
-                  }}
-                  theme="filled_black"
-                  shape="pill"
-                />
-              ) : (
-                <button 
-                  type="button" 
-                  disabled={isGoogleLoading}
-                  onClick={() => handleGoogleSuccess({ credential: 'mock_token' })}
-                  className="w-full flex items-center justify-center gap-3 bg-[#18181b] hover:bg-[#222226] text-white border border-[#333] hover:border-[#555] font-medium py-2.5 px-4 rounded-xl transition-all shadow-[0_4px_12px_rgba(0,0,0,0.4)] group cursor-pointer disabled:opacity-50 text-sm"
-                >
-                  {isGoogleLoading ? (
-                    <Loader2 size={18} className="animate-spin text-purple-400" />
-                  ) : (
-                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                    </svg>
-                  )}
-                  <span className="font-semibold text-sm">{isGoogleLoading ? 'Signing up...' : 'Sign up with Google'}</span>
-                </button>
-              )}
-            </div>
-
             {/* Switch to Login */}
-            <div className="text-center pt-3 border-t border-[#222]">
+            <div className="text-center pt-4 border-t border-[#222]">
               <span className="text-gray-400 text-sm">Already have an account? </span>
               <button 
                 type="button" 
