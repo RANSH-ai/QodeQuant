@@ -228,10 +228,6 @@ export default function CompilerDashboard() {
   return (
     <div 
       className="h-screen bg-[#050505] flex flex-col font-sans overflow-hidden text-gray-300"
-      onCopy={(e) => { e.preventDefault(); alert("Copying is not allowed."); }}
-      onPaste={(e) => { e.preventDefault(); alert("Pasting is not allowed."); }}
-      onCut={(e) => { e.preventDefault(); alert("Cutting is not allowed."); }}
-      onContextMenu={(e) => e.preventDefault()}
     >
       
       {/* Header */}
