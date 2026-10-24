@@ -223,6 +223,45 @@ export default function CompilerDashboard() {
     }
   };
 
+  const [pasteBlockedWarning, setPasteBlockedWarning] = useState(false);
+
+  const showPasteWarning = () => {
+    setPasteBlockedWarning(true);
+    setTimeout(() => {
+      setPasteBlockedWarning(false);
+    }, 2500);
+  };
+
+  const handleEditorMount = (editor, monaco) => {
+    // Intercept keyboard shortcuts: Ctrl+V, Cmd+V, Shift+Insert
+    editor.onKeyDown((e) => {
+      const isPaste = ((e.ctrlKey || e.metaKey) && (e.code === 'KeyV' || e.keyCode === 52 || e.browserEvent?.key === 'v' || e.browserEvent?.key === 'V')) || 
+                      (e.shiftKey && (e.code === 'Insert' || e.browserEvent?.key === 'Insert'));
+      if (isPaste) {
+        e.preventDefault();
+        e.stopPropagation();
+        showPasteWarning();
+      }
+    });
+
+    // Override Monaco's internal paste command
+    try {
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, () => {
+        showPasteWarning();
+      });
+    } catch (err) {}
+
+    // Intercept native DOM paste event on editor element
+    const domNode = editor.getDomNode();
+    if (domNode) {
+      domNode.addEventListener('paste', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showPasteWarning();
+      }, true);
+    }
+  };
+
   const activeContent = files.find(f => f.name === activeFile)?.content || '';
 
   return (
@@ -395,7 +434,14 @@ export default function CompilerDashboard() {
         </div>
 
         {/* Editor Pane (Center) */}
-        <div className="flex-1 flex flex-col border-r border-[#222] bg-[#111]">
+        <div 
+          className="flex-1 flex flex-col border-r border-[#222] bg-[#111]"
+          onPasteCapture={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showPasteWarning();
+          }}
+        >
           <div className="bg-[#1a1a1a] border-b border-[#222] px-4 flex items-center justify-between shadow-sm z-10 h-10">
             {/* Tabs */}
             <div className="flex h-full">
@@ -413,12 +459,18 @@ export default function CompilerDashboard() {
             </div>
           </div>
           <div className="flex-1 relative bg-[#111]">
+            {pasteBlockedWarning && (
+              <div className="absolute top-3 right-4 z-50 bg-red-600/95 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-xl border border-red-500/50 flex items-center gap-2 pointer-events-none animate-bounce">
+                <span>🚫 Pasting is not allowed! You can only copy code.</span>
+              </div>
+            )}
             <Editor
               height="100%"
               theme="vs-dark"
               language={SUPPORTED_LANGUAGES.find(l => l.id === language)?.monacoLang || 'python'}
               value={activeContent}
               onChange={handleCodeChange}
+              onMount={handleEditorMount}
               options={{
                 minimap: { enabled: false },
                 fontSize: 15,
@@ -428,7 +480,7 @@ export default function CompilerDashboard() {
                 smoothScrolling: true,
                 cursorBlinking: 'smooth',
                 cursorSmoothCaretAnimation: 'on',
-                formatOnPaste: true,
+                formatOnPaste: false,
                 renderLineHighlight: 'all'
               }}
             />
